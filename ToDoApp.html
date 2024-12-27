@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do App with Recurring Tasks</title>
+    <style>
+        /* Same styling as before */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1, h2 {
+            text-align: center;
+        }
+        .task-form {
+            display: flex;
+            flex-direction: column;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .task-form input, .task-form textarea, .task-form select, .task-form button {
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px auto;
+        }
+        .task-table th, .task-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .task-table th {
+            background-color: #f4f4f4;
+        }
+        .task-actions button {
+            margin: 0 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .filters button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>To-Do App with Recurring Tasks</h1>
+    <h2 id="today-date"></h2>
+
+    <div class="task-form">
+        <h2>Add a New Task</h2>
+        <input type="text" id="task-name" placeholder="Task Name" required>
+        <textarea id="task-description" placeholder="Task Description"></textarea>
+        <input type="url" id="task-url" placeholder="Task URL (optional)">
+        <input type="date" id="task-date" required>
+        <label for="recurring-day">Repeat on (Optional):</label>
+        <select id="recurring-day">
+            <option value="">No Repeat</option>
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+            <option value="Sunday">Sunday</option>
+        </select>
+        <button onclick="addTask()">Save Task</button>
+    </div>
+
+    <div class="filters">
+        <button onclick="showTodayTasks()">Show Today's Tasks</button>
+        <button onclick="showThisWeekTasks()">Show This Week's Tasks</button>
+        <button onclick="showAllTasks()">Show All Tasks</button>
+    </div>
+
+    <table class="task-table">
+        <thead>
+            <tr>
+                <th>Task Name</th>
+                <th>Description</th>
+                <th>URL</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="task-list"></tbody>
+    </table>
+
+    <script>
+        const taskList = JSON.parse(localStorage.getItem('tasks')) || [];
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('today-date').textContent = `Today's Date: ${today}`;
+
+        function saveTasks() {
+            localStorage.setItem('tasks', JSON.stringify(taskList));
+        }
+
+        function addTask() {
+            const name = document.getElementById('task-name').value;
+            const description = document.getElementById('task-description').value;
+            const url = document.getElementById('task-url').value;
+            const date = document.getElementById('task-date').value;
+            const recurringDay = document.getElementById('recurring-day').value;
+
+            if (!name || !date) {
+                alert('Task name and date are required!');
+                return;
+            }
+
+            // Add the main task
+            taskList.push({ name, description, url, date, status: 'Pending' });
+
+            // Handle recurring tasks (generate for the next 30 days)
+            if (recurringDay) {
+                const currentDate = new Date(date);
+                for (let i = 0; i < 30; i++) {
+                    currentDate.setDate(currentDate.getDate() + 1);
+                    if (currentDate.toLocaleDateString('en-US', { weekday: 'long' }) === recurringDay) {
+                        taskList.push({
+                            name,
+                            description,
+                            url,
+                            date: currentDate.toISOString().split('T')[0],
+                            status: 'Pending'
+                        });
+                    }
+                }
+            }
+
+            saveTasks();
+            showAllTasks();
+        }
+
+        function deleteTask(index) {
+            taskList.splice(index, 1);
+            saveTasks();
+            showAllTasks();
+        }
+
+        function toggleStatus(index) {
+            taskList[index].status = taskList[index].status === 'Pending' ? 'Done' : 'Pending';
+            saveTasks();
+            showAllTasks();
+        }
+
+        function showTasks(filterFn) {
+            const tbody = document.getElementById('task-list');
+            tbody.innerHTML = '';
+            taskList.filter(filterFn).forEach((task, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${task.name}</td>
+                    <td>${task.description}</td>
+                    <td>${task.url ? `<a href="${task.url}" target="_blank">Link</a>` : 'N/A'}</td>
+                    <td>${task.date}</td>
+                    <td>${task.status}</td>
+                    <td class="task-actions">
+                        <button onclick="toggleStatus(${index})">${task.status === 'Pending' ? 'Mark Done' : 'Mark Pending'}</button>
+                        <button onclick="deleteTask(${index})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function showTodayTasks() {
+            showTasks(task => task.date === today);
+        }
+
+        function showThisWeekTasks() {
+            const startOfWeek = new Date();
+            startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+            const endOfWeek = new Date();
+            endOfWeek.setDate(endOfWeek.getDate() + (6 - endOfWeek.getDay()));
+
+            showTasks(task => {
+                const taskDate = new Date(task.date);
+                return taskDate >= startOfWeek && taskDate <= endOfWeek;
+            });
+        }
+
+        function showAllTasks() {
+            showTasks(() => true);
+        }
+
+        // Initialize the app by showing all tasks
+        showAllTasks();
+    </script>
+</body>
+</html>
